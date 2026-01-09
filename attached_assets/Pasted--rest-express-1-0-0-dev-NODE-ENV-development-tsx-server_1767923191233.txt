@@ -1,0 +1,35 @@
+
+> rest-express@1.0.0 dev
+> NODE_ENV=development tsx server/index.ts
+
+1:45:10 AM [express] serving on port 5000
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+1:45:13 AM [express] GET /api/documents 304 in 36ms :: [{"id":1,"name":"Math","type":"folder","content":"","parentId":null,"createdAt":"2026-01-09T01:31:15.235Z"}]
+1:45:17 AM [express] GET /api/documents 200 in 3ms :: [{"id":1,"name":"Math","type":"folder","content":"","parentId":null,"createdAt":"2026-01-09T01:31:15.235Z"}]
+1:45:26 AM [express] GET /api/documents 304 in 3ms :: [{"id":1,"name":"Math","type":"folder","content":"","parentId":null,"createdAt":"2026-01-09T01:31:15.235Z"}]
+Error creating document: error: invalid byte sequence for encoding "UTF8": 0x00
+    at /home/runner/workspace/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async <anonymous> (/home/runner/workspace/node_modules/src/node-postgres/session.ts:104:19)
+    at async Object.createDocument (/home/runner/workspace/server/storage.ts:39:27)
+    at async <anonymous> (/home/runner/workspace/server/routes.ts:31:24) {
+  length: 146,
+  severity: 'ERROR',
+  code: '22021',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: 'unnamed portal parameter $3',
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'mbutils.c',
+  line: '1727',
+  routine: 'report_invalid_encoding'
+}
+1:45:54 AM [express] POST /api/documents 400 in 21ms :: {"error":"Invalid document data"}
+[RUNTIME_ERROR]{"type":"runtime-error","timestamp":1767923154615,"name":"Error","message":"Failed to create document","stack":"    at Object.createDocument [as mutationFn] (https://cc94aa0e-642f-4864-9d6b-01b1666efee9-00-11n7pl6mk2252.spock.replit.dev/src/lib/api.ts:12:27)"}

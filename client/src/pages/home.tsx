@@ -375,16 +375,20 @@ export default function Home() {
         const content = event.target?.result as string;
         await createDocMutation.mutateAsync({
           name: file.name,
-          type: type === "pdf" ? "application/pdf" : file.type,
+          type: file.type || (type === "pdf" ? "application/pdf" : "text/plain"),
           content: content,
           parentId: null,
         });
       };
       
-      if (type === "image" || file.type.startsWith("image/")) {
-        reader.readAsDataURL(file);
-      } else {
+      const isTextFile = file.type.startsWith("text/") || 
+        file.name.endsWith(".txt") || 
+        file.name.endsWith(".md");
+      
+      if (isTextFile) {
         reader.readAsText(file);
+      } else {
+        reader.readAsDataURL(file);
       }
     }
     e.target.value = "";
