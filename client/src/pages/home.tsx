@@ -373,9 +373,24 @@ export default function Home() {
       const reader = new FileReader();
       reader.onload = async (event) => {
         const content = event.target?.result as string;
+        
+        // Determine file type more accurately
+        let detectedType = file.type;
+        if (!detectedType) {
+          if (file.name.endsWith(".pdf")) {
+            detectedType = "application/pdf";
+          } else if (file.name.endsWith(".txt") || file.name.endsWith(".md")) {
+            detectedType = "text/plain";
+          } else if (type === "pdf" || file.name.endsWith(".pdf")) {
+            detectedType = "application/pdf";
+          } else {
+            detectedType = "text/plain";
+          }
+        }
+        
         await createDocMutation.mutateAsync({
           name: file.name,
-          type: file.type || (type === "pdf" ? "application/pdf" : "text/plain"),
+          type: detectedType,
           content: content,
           parentId: null,
         });
@@ -607,8 +622,10 @@ export default function Home() {
               <div className="flex items-center gap-3">
                 {selectedDocument.type.includes("image") ? (
                   <Image className="w-5 h-5 text-blue-500" />
-                ) : (
+                ) : selectedDocument.type.includes("pdf") ? (
                   <FileText className="w-5 h-5 text-red-500" />
+                ) : (
+                  <FileText className="w-5 h-5 text-muted-foreground" />
                 )}
                 <h2 className="font-medium">{selectedDocument.name}</h2>
               </div>
@@ -621,22 +638,31 @@ export default function Home() {
                 <X className="w-4 h-4" />
               </Button>
             </div>
-            <ScrollArea className="flex-1 p-6">
-              {selectedDocument.type.includes("image") || selectedDocument.content.startsWith("data:image") ? (
-                <div className="flex items-center justify-center h-full">
-                  <img 
-                    src={selectedDocument.content} 
-                    alt={selectedDocument.name}
-                    className="max-w-full max-h-full object-contain rounded-lg shadow-lg"
-                    data-testid="image-viewer"
-                  />
-                </div>
-              ) : (
-                <pre className="whitespace-pre-wrap font-mono text-sm leading-relaxed bg-muted/30 p-4 rounded-lg" data-testid="text-viewer">
-                  {selectedDocument.content}
-                </pre>
-              )}
-            </ScrollArea>
+            {selectedDocument.type.includes("pdf") || selectedDocument.content.startsWith("data:application/pdf") ? (
+              <iframe
+                src={selectedDocument.content}
+                className="flex-1 w-full border-0"
+                title={selectedDocument.name}
+                data-testid="pdf-viewer"
+              />
+            ) : (
+              <ScrollArea className="flex-1 p-6">
+                {selectedDocument.type.includes("image") || selectedDocument.content.startsWith("data:image") ? (
+                  <div className="flex items-center justify-center h-full">
+                    <img 
+                      src={selectedDocument.content} 
+                      alt={selectedDocument.name}
+                      className="max-w-full max-h-full object-contain rounded-lg shadow-lg"
+                      data-testid="image-viewer"
+                    />
+                  </div>
+                ) : (
+                  <pre className="whitespace-pre-wrap font-mono text-sm leading-relaxed bg-muted/30 p-4 rounded-lg" data-testid="text-viewer">
+                    {selectedDocument.content}
+                  </pre>
+                )}
+              </ScrollArea>
+            )}
           </div>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
