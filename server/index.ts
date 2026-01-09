@@ -1,5 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
+import { registerChatRoutes } from "./replit_integrations/chat";
+import { registerImageRoutes } from "./replit_integrations/image";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 
@@ -60,6 +62,8 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  registerChatRoutes(app);
+  registerImageRoutes(app);
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
