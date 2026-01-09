@@ -72,6 +72,11 @@ export async function registerRoutes(
         return res.status(404).json({ error: "Document not found" });
       }
 
+      // Headers to allow iframe embedding
+      res.removeHeader("X-Frame-Options");
+      res.setHeader("Content-Security-Policy", "frame-ancestors 'self'");
+      res.setHeader("X-Content-Type-Options", "nosniff");
+
       // Check if content is a data URL
       if (document.content.startsWith("data:")) {
         const matches = document.content.match(/^data:([^;]+);base64,(.+)$/);
@@ -81,7 +86,9 @@ export async function registerRoutes(
           const buffer = Buffer.from(base64Data, "base64");
           
           res.setHeader("Content-Type", mimeType);
-          res.setHeader("Content-Disposition", `inline; filename="${document.name}"`);
+          res.setHeader("Content-Length", buffer.length.toString());
+          res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(document.name)}"`);
+          res.setHeader("Accept-Ranges", "bytes");
           res.send(buffer);
           return;
         }
