@@ -237,7 +237,8 @@ export default function Home() {
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
               <Sparkles className="w-4 h-4 text-white" />
             </div>
-            <span className="font-serif font-bold">StudyMind</span>
+            <span className="font-serif font-bold">AI Notes+
+</span>
           </div>
         </div>
         
@@ -304,7 +305,6 @@ export default function Home() {
           </Button>
         </div>
       </aside>
-
       <main className="flex-1 flex flex-col overflow-hidden">
         {selectedDocument ? (
           <div className="flex-1 flex flex-col overflow-hidden">
@@ -355,7 +355,6 @@ export default function Home() {
           </div>
         )}
       </main>
-
       <div
         ref={chatResizeRef}
         className="w-1 cursor-col-resize bg-border hover:bg-accent/50 transition-colors flex items-center justify-center"
@@ -363,7 +362,6 @@ export default function Home() {
       >
         <GripVertical className="w-3 h-3 text-muted-foreground" />
       </div>
-
       <aside 
         className="border-l bg-card/30 flex flex-col flex-shrink-0"
         style={{ width: `${chatWidth}px` }}
