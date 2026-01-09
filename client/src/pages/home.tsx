@@ -1,183 +1,471 @@
-import { Link } from "wouter";
-import { FileText, MessageCircleQuestion, GraduationCap, Sparkles, BookOpen, Brain, ArrowRight } from "lucide-react";
+import { useState, useRef } from "react";
+import { 
+  FileText, 
+  Image, 
+  Paperclip, 
+  Send, 
+  ChevronRight, 
+  ChevronDown, 
+  Folder, 
+  FolderOpen,
+  File,
+  Plus,
+  MoreHorizontal,
+  Sparkles,
+  X
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-const features = [
+interface FileNode {
+  id: string;
+  name: string;
+  type: "folder" | "file";
+  fileType?: "pdf" | "image" | "text";
+  children?: FileNode[];
+}
+
+const initialFiles: FileNode[] = [
   {
-    icon: FileText,
-    title: "Note Completion",
-    description: "Upload your incomplete notes and let AI fill in missing definitions, clarify concepts, and expand on vague points while preserving your structure.",
-    href: "/notes",
-    color: "from-blue-500 to-indigo-600",
+    id: "1",
+    name: "Biology 101",
+    type: "folder",
+    children: [
+      { id: "1-1", name: "Photosynthesis Notes.pdf", type: "file", fileType: "pdf" },
+      { id: "1-2", name: "Cell Structure.pdf", type: "file", fileType: "pdf" },
+      { id: "1-3", name: "Diagram.png", type: "file", fileType: "image" },
+    ],
   },
   {
-    icon: MessageCircleQuestion,
-    title: "Ask Questions",
-    description: "Chat with your notes using RAG-powered AI. Get accurate answers with citations directly from your study materials.",
-    href: "/chat",
-    color: "from-amber-500 to-orange-600",
+    id: "2",
+    name: "Chemistry",
+    type: "folder",
+    children: [
+      { id: "2-1", name: "Organic Chemistry.pdf", type: "file", fileType: "pdf" },
+      { id: "2-2", name: "Periodic Table.png", type: "file", fileType: "image" },
+    ],
   },
   {
-    icon: GraduationCap,
-    title: "Practice Exams",
-    description: "Generate custom midterm exams with multiple choice, short answer, and conceptual questions—complete with answer keys.",
-    href: "/exam",
-    color: "from-emerald-500 to-teal-600",
+    id: "3",
+    name: "Math 201",
+    type: "folder",
+    children: [
+      { id: "3-1", name: "Calculus Notes.txt", type: "file", fileType: "text" },
+    ],
   },
 ];
 
-export default function Home() {
+interface Message {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  attachments?: { name: string; type: string }[];
+}
+
+function FileTreeItem({ 
+  node, 
+  depth = 0,
+  expandedFolders,
+  toggleFolder,
+  selectedFile,
+  setSelectedFile
+}: { 
+  node: FileNode; 
+  depth?: number;
+  expandedFolders: string[];
+  toggleFolder: (id: string) => void;
+  selectedFile: string | null;
+  setSelectedFile: (id: string) => void;
+}) {
+  const isExpanded = expandedFolders.includes(node.id);
+  const isSelected = selectedFile === node.id;
+
+  const getFileIcon = (fileType?: string) => {
+    switch (fileType) {
+      case "pdf":
+        return <FileText className="w-4 h-4 text-red-500" />;
+      case "image":
+        return <Image className="w-4 h-4 text-blue-500" />;
+      default:
+        return <File className="w-4 h-4 text-muted-foreground" />;
+    }
+  };
+
   return (
-    <div className="min-h-screen noise">
-      <header className="border-b bg-card/50 glass sticky top-0 z-50">
-        <div className="container mx-auto px-6 h-16 flex items-center justify-between">
-          <Link href="/">
-            <div className="flex items-center gap-2 cursor-pointer" data-testid="link-home">
-              <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-                <Brain className="w-5 h-5 text-white" />
-              </div>
-              <span className="font-serif font-bold text-xl">StudyMind</span>
-            </div>
-          </Link>
-          <nav className="flex items-center gap-6">
-            <Link href="/notes">
-              <span className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer" data-testid="nav-notes">Notes</span>
-            </Link>
-            <Link href="/chat">
-              <span className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer" data-testid="nav-chat">Chat</span>
-            </Link>
-            <Link href="/exam">
-              <span className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer" data-testid="nav-exam">Exams</span>
-            </Link>
-          </nav>
+    <div>
+      <div
+        className={`flex items-center gap-1 py-1.5 px-2 rounded-md cursor-pointer text-sm transition-colors ${
+          isSelected 
+            ? "bg-accent/20 text-foreground" 
+            : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"
+        }`}
+        style={{ paddingLeft: `${depth * 12 + 8}px` }}
+        onClick={() => {
+          if (node.type === "folder") {
+            toggleFolder(node.id);
+          } else {
+            setSelectedFile(node.id);
+          }
+        }}
+        data-testid={`file-${node.id}`}
+      >
+        {node.type === "folder" ? (
+          <>
+            {isExpanded ? (
+              <ChevronDown className="w-4 h-4 flex-shrink-0" />
+            ) : (
+              <ChevronRight className="w-4 h-4 flex-shrink-0" />
+            )}
+            {isExpanded ? (
+              <FolderOpen className="w-4 h-4 text-amber-500 flex-shrink-0" />
+            ) : (
+              <Folder className="w-4 h-4 text-amber-500 flex-shrink-0" />
+            )}
+          </>
+        ) : (
+          <>
+            <span className="w-4" />
+            {getFileIcon(node.fileType)}
+          </>
+        )}
+        <span className="truncate ml-1">{node.name}</span>
+      </div>
+      {node.type === "folder" && isExpanded && node.children && (
+        <div>
+          {node.children.map((child) => (
+            <FileTreeItem
+              key={child.id}
+              node={child}
+              depth={depth + 1}
+              expandedFolders={expandedFolders}
+              toggleFolder={toggleFolder}
+              selectedFile={selectedFile}
+              setSelectedFile={setSelectedFile}
+            />
+          ))}
         </div>
-      </header>
+      )}
+    </div>
+  );
+}
 
-      <main>
-        <section className="py-24 lg:py-32">
-          <div className="container mx-auto px-6">
-            <div className="max-w-4xl mx-auto text-center animate-in">
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent/10 border border-accent/20 mb-8">
-                <Sparkles className="w-4 h-4 text-accent" />
-                <span className="text-sm font-medium text-accent">AI-Powered Study Assistant</span>
-              </div>
-              <h1 className="text-5xl lg:text-7xl font-bold tracking-tight mb-6 leading-[1.1]">
-                Transform Your Notes Into
-                <span className="block text-gradient">Knowledge</span>
-              </h1>
-              <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
-                Stop spending hours filling gaps in your notes. Let AI complete your notes, answer your questions, and generate practice exams—all grounded in your own study materials.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Link href="/notes">
-                  <Button size="lg" className="gap-2 px-8" data-testid="button-get-started">
-                    <BookOpen className="w-5 h-5" />
-                    Get Started
-                    <ArrowRight className="w-4 h-4" />
-                  </Button>
-                </Link>
-                <Link href="/chat">
-                  <Button size="lg" variant="outline" className="gap-2 px-8" data-testid="button-try-chat">
-                    <MessageCircleQuestion className="w-5 h-5" />
-                    Try Chat
-                  </Button>
-                </Link>
-              </div>
+export default function Home() {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState("");
+  const [attachments, setAttachments] = useState<{ name: string; type: string }[]>([]);
+  const [expandedFolders, setExpandedFolders] = useState<string[]>(["1"]);
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const toggleFolder = (id: string) => {
+    setExpandedFolders((prev) =>
+      prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id]
+    );
+  };
+
+  const handleSend = () => {
+    if (!input.trim() && attachments.length === 0) return;
+
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      role: "user",
+      content: input,
+      attachments: attachments.length > 0 ? [...attachments] : undefined,
+    };
+
+    setMessages((prev) => [...prev, userMessage]);
+    setInput("");
+    setAttachments([]);
+    setIsLoading(true);
+
+    setTimeout(() => {
+      const assistantMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: "assistant",
+        content: "I've received your notes. I can help you complete missing information, answer questions about the content, or generate practice exam questions. What would you like me to do?",
+      };
+      setMessages((prev) => [...prev, assistantMessage]);
+      setIsLoading(false);
+    }, 1500);
+  };
+
+  const handleFileSelect = (type: "pdf" | "image") => {
+    if (type === "pdf") {
+      fileInputRef.current?.click();
+    } else {
+      imageInputRef.current?.click();
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: string) => {
+    const files = e.target.files;
+    if (files) {
+      const newAttachments = Array.from(files).map((file) => ({
+        name: file.name,
+        type,
+      }));
+      setAttachments((prev) => [...prev, ...newAttachments]);
+    }
+    e.target.value = "";
+  };
+
+  const removeAttachment = (index: number) => {
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  return (
+    <div className="h-screen flex bg-background">
+      <aside className="w-64 border-r bg-card/50 flex flex-col">
+        <div className="p-4 border-b flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
+              <Sparkles className="w-4 h-4 text-white" />
             </div>
+            <span className="font-serif font-bold">StudyMind</span>
           </div>
-        </section>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8" data-testid="button-new-folder">
+                <Plus className="w-4 h-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>New folder</TooltipContent>
+          </Tooltip>
+        </div>
+        
+        <div className="p-3 border-b">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Your Files</p>
+        </div>
+        
+        <ScrollArea className="flex-1 p-2">
+          {initialFiles.map((file) => (
+            <FileTreeItem
+              key={file.id}
+              node={file}
+              expandedFolders={expandedFolders}
+              toggleFolder={toggleFolder}
+              selectedFile={selectedFile}
+              setSelectedFile={setSelectedFile}
+            />
+          ))}
+        </ScrollArea>
 
-        <section className="py-20 bg-muted/30">
-          <div className="container mx-auto px-6">
-            <div className="text-center mb-16 animate-in-delay-1">
-              <h2 className="text-3xl lg:text-4xl font-bold mb-4">Three Powerful Tools</h2>
-              <p className="text-lg text-muted-foreground max-w-xl mx-auto">
-                Everything you need to study smarter, not harder.
+        <div className="p-3 border-t">
+          <Button variant="outline" className="w-full gap-2 text-sm" size="sm" data-testid="button-upload-files">
+            <Plus className="w-4 h-4" />
+            Upload Files
+          </Button>
+        </div>
+      </aside>
+
+      <main className="flex-1 flex flex-col">
+        <ScrollArea className="flex-1 p-6">
+          {messages.length === 0 ? (
+            <div className="h-full flex flex-col items-center justify-center text-center max-w-xl mx-auto">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center mb-6">
+                <Sparkles className="w-8 h-8 text-primary" />
+              </div>
+              <h1 className="text-2xl font-bold mb-3">What can I help you study?</h1>
+              <p className="text-muted-foreground mb-8">
+                Upload your notes, PDFs, or images and I'll help complete missing information, answer questions, or generate practice exams.
               </p>
-            </div>
-
-            <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-              {features.map((feature, index) => (
-                <Link key={feature.title} href={feature.href}>
-                  <Card 
-                    className={`h-full cursor-pointer hover-lift border-2 border-transparent hover:border-accent/30 transition-all duration-300 animate-in-delay-${index + 1}`}
-                    data-testid={`card-feature-${feature.title.toLowerCase().replace(/\s+/g, '-')}`}
-                  >
-                    <CardHeader>
-                      <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${feature.color} flex items-center justify-center mb-4 shadow-lg`}>
-                        <feature.icon className="w-7 h-7 text-white" />
-                      </div>
-                      <CardTitle className="text-xl">{feature.title}</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <CardDescription className="text-base leading-relaxed">
-                        {feature.description}
-                      </CardDescription>
-                    </CardContent>
-                  </Card>
-                </Link>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section className="py-24">
-          <div className="container mx-auto px-6">
-            <div className="max-w-4xl mx-auto">
-              <div className="grid md:grid-cols-2 gap-12 items-center">
-                <div className="animate-in-delay-2">
-                  <h2 className="text-3xl lg:text-4xl font-bold mb-6">
-                    Grounded in <span className="text-gradient">Your Materials</span>
-                  </h2>
-                  <p className="text-lg text-muted-foreground mb-6 leading-relaxed">
-                    Unlike generic AI chatbots, StudyMind uses Retrieval-Augmented Generation (RAG) to ensure every answer is grounded in your actual notes. You get accurate, relevant responses with citations to source sections.
-                  </p>
-                  <ul className="space-y-4">
-                    {[
-                      "Fills missing definitions and explanations",
-                      "Preserves your original note structure",
-                      "Labels AI-extended content clearly",
-                      "Admits when it doesn't know something",
-                    ].map((item, i) => (
-                      <li key={i} className="flex items-start gap-3">
-                        <div className="w-6 h-6 rounded-full bg-accent/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                          <Sparkles className="w-3.5 h-3.5 text-accent" />
-                        </div>
-                        <span className="text-muted-foreground">{item}</span>
-                      </li>
-                    ))}
-                  </ul>
+              <div className="grid grid-cols-2 gap-3 w-full max-w-md">
+                <div 
+                  className="p-4 rounded-xl border bg-card hover:bg-muted/50 cursor-pointer transition-colors text-left"
+                  onClick={() => handleFileSelect("pdf")}
+                  data-testid="quick-action-pdf"
+                >
+                  <FileText className="w-5 h-5 text-red-500 mb-2" />
+                  <p className="font-medium text-sm">Upload PDF</p>
+                  <p className="text-xs text-muted-foreground">Lecture notes, textbooks</p>
                 </div>
-                <div className="relative animate-in-delay-3">
-                  <div className="aspect-square rounded-2xl bg-gradient-to-br from-primary/10 via-accent/10 to-primary/5 border-2 border-dashed border-primary/20 flex items-center justify-center">
-                    <div className="text-center p-8">
-                      <Brain className="w-20 h-20 text-primary/40 mx-auto mb-4" />
-                      <p className="text-muted-foreground font-medium">Your Knowledge Hub</p>
+                <div 
+                  className="p-4 rounded-xl border bg-card hover:bg-muted/50 cursor-pointer transition-colors text-left"
+                  onClick={() => handleFileSelect("image")}
+                  data-testid="quick-action-image"
+                >
+                  <Image className="w-5 h-5 text-blue-500 mb-2" />
+                  <p className="font-medium text-sm">Upload Image</p>
+                  <p className="text-xs text-muted-foreground">Diagrams, handwritten notes</p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="max-w-3xl mx-auto space-y-6">
+              {messages.map((message) => (
+                <div
+                  key={message.id}
+                  className={`flex gap-4 ${message.role === "user" ? "justify-end" : ""}`}
+                  data-testid={`message-${message.role}-${message.id}`}
+                >
+                  {message.role === "assistant" && (
+                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center flex-shrink-0">
+                      <Sparkles className="w-4 h-4 text-white" />
+                    </div>
+                  )}
+                  <div className={`max-w-[80%] ${message.role === "user" ? "order-1" : ""}`}>
+                    {message.attachments && message.attachments.length > 0 && (
+                      <div className="flex gap-2 mb-2 flex-wrap justify-end">
+                        {message.attachments.map((att, i) => (
+                          <div key={i} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted text-sm">
+                            {att.type === "pdf" ? (
+                              <FileText className="w-4 h-4 text-red-500" />
+                            ) : (
+                              <Image className="w-4 h-4 text-blue-500" />
+                            )}
+                            <span className="truncate max-w-[150px]">{att.name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div
+                      className={`rounded-2xl px-4 py-3 ${
+                        message.role === "user"
+                          ? "bg-primary text-primary-foreground rounded-br-md"
+                          : "bg-muted/50 rounded-tl-md"
+                      }`}
+                    >
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
                     </div>
                   </div>
-                  <div className="absolute -top-4 -right-4 w-24 h-24 rounded-xl bg-accent/20 blur-2xl" />
-                  <div className="absolute -bottom-4 -left-4 w-32 h-32 rounded-xl bg-primary/20 blur-2xl" />
+                  {message.role === "user" && (
+                    <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center flex-shrink-0 order-2">
+                      <span className="text-sm font-medium">You</span>
+                    </div>
+                  )}
                 </div>
+              ))}
+              {isLoading && (
+                <div className="flex gap-4">
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center flex-shrink-0">
+                    <Sparkles className="w-4 h-4 text-white" />
+                  </div>
+                  <div className="bg-muted/50 rounded-2xl rounded-tl-md px-4 py-3">
+                    <div className="flex gap-1">
+                      <div className="w-2 h-2 rounded-full bg-muted-foreground/50 animate-bounce" style={{ animationDelay: "0ms" }} />
+                      <div className="w-2 h-2 rounded-full bg-muted-foreground/50 animate-bounce" style={{ animationDelay: "150ms" }} />
+                      <div className="w-2 h-2 rounded-full bg-muted-foreground/50 animate-bounce" style={{ animationDelay: "300ms" }} />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </ScrollArea>
+
+        <div className="p-4 border-t bg-card/50">
+          <div className="max-w-3xl mx-auto">
+            {attachments.length > 0 && (
+              <div className="flex gap-2 mb-3 flex-wrap">
+                {attachments.map((att, i) => (
+                  <div key={i} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted text-sm group">
+                    {att.type === "pdf" ? (
+                      <FileText className="w-4 h-4 text-red-500" />
+                    ) : (
+                      <Image className="w-4 h-4 text-blue-500" />
+                    )}
+                    <span className="truncate max-w-[150px]">{att.name}</span>
+                    <button
+                      onClick={() => removeAttachment(i)}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity"
+                      data-testid={`remove-attachment-${i}`}
+                    >
+                      <X className="w-3 h-3 text-muted-foreground hover:text-foreground" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            <div className="relative">
+              <Textarea
+                ref={textareaRef}
+                placeholder="Ask about your notes, request completions, or generate practice questions..."
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                className="min-h-[52px] max-h-[200px] pr-24 resize-none rounded-xl border-2 focus:border-primary/50"
+                rows={1}
+                data-testid="input-message"
+              />
+              <div className="absolute right-2 bottom-2 flex items-center gap-1">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  className="hidden"
+                  accept=".pdf"
+                  multiple
+                  onChange={(e) => handleFileChange(e, "pdf")}
+                />
+                <input
+                  type="file"
+                  ref={imageInputRef}
+                  className="hidden"
+                  accept="image/*"
+                  multiple
+                  onChange={(e) => handleFileChange(e, "image")}
+                />
+                
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-8 w-8"
+                      onClick={() => handleFileSelect("pdf")}
+                      data-testid="button-attach-pdf"
+                    >
+                      <FileText className="w-4 h-4 text-muted-foreground" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Attach PDF</TooltipContent>
+                </Tooltip>
+                
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-8 w-8"
+                      onClick={() => handleFileSelect("image")}
+                      data-testid="button-attach-image"
+                    >
+                      <Image className="w-4 h-4 text-muted-foreground" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Attach Image</TooltipContent>
+                </Tooltip>
+                
+                <Button 
+                  size="icon" 
+                  className="h-8 w-8"
+                  onClick={handleSend}
+                  disabled={(!input.trim() && attachments.length === 0) || isLoading}
+                  data-testid="button-send"
+                >
+                  <Send className="w-4 h-4" />
+                </Button>
               </div>
             </div>
-          </div>
-        </section>
-      </main>
-
-      <footer className="border-t py-12 bg-card/50">
-        <div className="container mx-auto px-6">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <Brain className="w-5 h-5 text-primary" />
-              <span className="font-serif font-bold">StudyMind AI</span>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Helping students study smarter, one note at a time.
+            
+            <p className="text-xs text-muted-foreground text-center mt-3">
+              StudyMind uses your notes to provide accurate, grounded answers
             </p>
           </div>
         </div>
-      </footer>
+      </main>
     </div>
   );
 }
