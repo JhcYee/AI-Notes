@@ -1,8 +1,8 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { 
   FileText, 
   Image, 
-  Paperclip, 
   Send, 
   ChevronRight, 
   ChevronDown, 
@@ -10,52 +10,23 @@ import {
   FolderOpen,
   File,
   Plus,
-  MoreHorizontal,
   Sparkles,
-  X
+  X,
+  GripVertical,
+  MessageCircle,
+  Trash2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-
-interface FileNode {
-  id: string;
-  name: string;
-  type: "folder" | "file";
-  fileType?: "pdf" | "image" | "text";
-  children?: FileNode[];
-}
-
-const initialFiles: FileNode[] = [
-  {
-    id: "1",
-    name: "Biology 101",
-    type: "folder",
-    children: [
-      { id: "1-1", name: "Photosynthesis Notes.pdf", type: "file", fileType: "pdf" },
-      { id: "1-2", name: "Cell Structure.pdf", type: "file", fileType: "pdf" },
-      { id: "1-3", name: "Diagram.png", type: "file", fileType: "image" },
-    ],
-  },
-  {
-    id: "2",
-    name: "Chemistry",
-    type: "folder",
-    children: [
-      { id: "2-1", name: "Organic Chemistry.pdf", type: "file", fileType: "pdf" },
-      { id: "2-2", name: "Periodic Table.png", type: "file", fileType: "image" },
-    ],
-  },
-  {
-    id: "3",
-    name: "Math 201",
-    type: "folder",
-    children: [
-      { id: "3-1", name: "Calculus Notes.txt", type: "file", fileType: "text" },
-    ],
-  },
-];
+import { 
+  fetchDocuments, 
+  createDocument, 
+  deleteDocument,
+  sendMessageStream,
+  type Document
+} from "@/lib/api";
 
 interface Message {
   id: string;
@@ -65,133 +36,157 @@ interface Message {
 }
 
 function FileTreeItem({ 
-  node, 
-  depth = 0,
-  expandedFolders,
-  toggleFolder,
+  doc,
   selectedFile,
-  setSelectedFile
+  setSelectedFile,
+  onDelete
 }: { 
-  node: FileNode; 
-  depth?: number;
-  expandedFolders: string[];
-  toggleFolder: (id: string) => void;
-  selectedFile: string | null;
-  setSelectedFile: (id: string) => void;
+  doc: Document;
+  selectedFile: number | null;
+  setSelectedFile: (id: number) => void;
+  onDelete: (id: number) => void;
 }) {
-  const isExpanded = expandedFolders.includes(node.id);
-  const isSelected = selectedFile === node.id;
+  const isSelected = selectedFile === doc.id;
 
-  const getFileIcon = (fileType?: string) => {
-    switch (fileType) {
-      case "pdf":
-        return <FileText className="w-4 h-4 text-red-500" />;
-      case "image":
-        return <Image className="w-4 h-4 text-blue-500" />;
-      default:
-        return <File className="w-4 h-4 text-muted-foreground" />;
-    }
+  const getFileIcon = (type: string) => {
+    if (type.includes("pdf")) return <FileText className="w-4 h-4 text-red-500" />;
+    if (type.includes("image")) return <Image className="w-4 h-4 text-blue-500" />;
+    return <File className="w-4 h-4 text-muted-foreground" />;
   };
 
   return (
-    <div>
-      <div
-        className={`flex items-center gap-1 py-1.5 px-2 rounded-md cursor-pointer text-sm transition-colors ${
-          isSelected 
-            ? "bg-accent/20 text-foreground" 
-            : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"
-        }`}
-        style={{ paddingLeft: `${depth * 12 + 8}px` }}
-        onClick={() => {
-          if (node.type === "folder") {
-            toggleFolder(node.id);
-          } else {
-            setSelectedFile(node.id);
-          }
+    <div
+      className={`flex items-center gap-2 py-1.5 px-2 rounded-md cursor-pointer text-sm transition-colors group ${
+        isSelected 
+          ? "bg-accent/20 text-foreground" 
+          : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"
+      }`}
+      onClick={() => setSelectedFile(doc.id)}
+      data-testid={`file-${doc.id}`}
+    >
+      {getFileIcon(doc.type)}
+      <span className="truncate flex-1">{doc.name}</span>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onDelete(doc.id);
         }}
-        data-testid={`file-${node.id}`}
+        className="opacity-0 group-hover:opacity-100 p-1 hover:bg-destructive/20 rounded transition-opacity"
+        data-testid={`delete-file-${doc.id}`}
       >
-        {node.type === "folder" ? (
-          <>
-            {isExpanded ? (
-              <ChevronDown className="w-4 h-4 flex-shrink-0" />
-            ) : (
-              <ChevronRight className="w-4 h-4 flex-shrink-0" />
-            )}
-            {isExpanded ? (
-              <FolderOpen className="w-4 h-4 text-amber-500 flex-shrink-0" />
-            ) : (
-              <Folder className="w-4 h-4 text-amber-500 flex-shrink-0" />
-            )}
-          </>
-        ) : (
-          <>
-            <span className="w-4" />
-            {getFileIcon(node.fileType)}
-          </>
-        )}
-        <span className="truncate ml-1">{node.name}</span>
-      </div>
-      {node.type === "folder" && isExpanded && node.children && (
-        <div>
-          {node.children.map((child) => (
-            <FileTreeItem
-              key={child.id}
-              node={child}
-              depth={depth + 1}
-              expandedFolders={expandedFolders}
-              toggleFolder={toggleFolder}
-              selectedFile={selectedFile}
-              setSelectedFile={setSelectedFile}
-            />
-          ))}
-        </div>
-      )}
+        <Trash2 className="w-3 h-3 text-destructive" />
+      </button>
     </div>
   );
 }
 
 export default function Home() {
+  const queryClient = useQueryClient();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
-  const [attachments, setAttachments] = useState<{ name: string; type: string }[]>([]);
-  const [expandedFolders, setExpandedFolders] = useState<string[]>(["1"]);
-  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [chatWidth, setChatWidth] = useState(380);
+  const [isResizing, setIsResizing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const chatResizeRef = useRef<HTMLDivElement>(null);
 
-  const toggleFolder = (id: string) => {
-    setExpandedFolders((prev) =>
-      prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id]
-    );
-  };
+  const { data: documents = [] } = useQuery({
+    queryKey: ["/api/documents"],
+    queryFn: fetchDocuments,
+  });
+
+  const createDocMutation = useMutation({
+    mutationFn: createDocument,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
+    },
+  });
+
+  const deleteDocMutation = useMutation({
+    mutationFn: deleteDocument,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
+      if (selectedFile) setSelectedFile(null);
+    },
+  });
+
+  const selectedDocument = documents.find(d => d.id === selectedFile);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing) return;
+      const newWidth = window.innerWidth - e.clientX;
+      setChatWidth(Math.max(280, Math.min(600, newWidth)));
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    if (isResizing) {
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
+    }
+
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isResizing]);
 
   const handleSend = () => {
-    if (!input.trim() && attachments.length === 0) return;
+    if (!input.trim() || isLoading) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
       role: "user",
       content: input,
-      attachments: attachments.length > 0 ? [...attachments] : undefined,
     };
 
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
-    setAttachments([]);
     setIsLoading(true);
 
-    setTimeout(() => {
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content: "I've received your notes. I can help you complete missing information, answer questions about the content, or generate practice exam questions. What would you like me to do?",
-      };
-      setMessages((prev) => [...prev, assistantMessage]);
-      setIsLoading(false);
-    }, 1500);
+    const assistantMessage: Message = {
+      id: (Date.now() + 1).toString(),
+      role: "assistant",
+      content: "",
+    };
+    setMessages((prev) => [...prev, assistantMessage]);
+
+    sendMessageStream(
+      input,
+      documents,
+      (content) => {
+        setMessages((prev) => {
+          const updated = [...prev];
+          const lastIndex = updated.length - 1;
+          updated[lastIndex] = {
+            ...updated[lastIndex],
+            content: updated[lastIndex].content + content,
+          };
+          return updated;
+        });
+      },
+      () => {
+        setIsLoading(false);
+      },
+      (error) => {
+        setMessages((prev) => {
+          const updated = [...prev];
+          const lastIndex = updated.length - 1;
+          updated[lastIndex] = {
+            ...updated[lastIndex],
+            content: `Error: ${error}`,
+          };
+          return updated;
+        });
+        setIsLoading(false);
+      }
+    );
   };
 
   const handleFileSelect = (type: "pdf" | "image") => {
@@ -202,20 +197,29 @@ export default function Home() {
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: string) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, type: string) => {
     const files = e.target.files;
-    if (files) {
-      const newAttachments = Array.from(files).map((file) => ({
-        name: file.name,
-        type,
-      }));
-      setAttachments((prev) => [...prev, ...newAttachments]);
+    if (!files) return;
+
+    for (const file of Array.from(files)) {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const content = event.target?.result as string;
+        await createDocMutation.mutateAsync({
+          name: file.name,
+          type: type === "pdf" ? "application/pdf" : file.type,
+          content: content,
+          parentId: null,
+        });
+      };
+      
+      if (type === "image" || file.type.startsWith("image/")) {
+        reader.readAsDataURL(file);
+      } else {
+        reader.readAsText(file);
+      }
     }
     e.target.value = "";
-  };
-
-  const removeAttachment = (index: number) => {
-    setAttachments((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -227,7 +231,7 @@ export default function Home() {
 
   return (
     <div className="h-screen flex bg-background">
-      <aside className="w-64 border-r bg-card/50 flex flex-col">
+      <aside className="w-64 border-r bg-card/50 flex flex-col flex-shrink-0">
         <div className="p-4 border-b flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
@@ -235,14 +239,6 @@ export default function Home() {
             </div>
             <span className="font-serif font-bold">StudyMind</span>
           </div>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8" data-testid="button-new-folder">
-                <Plus className="w-4 h-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>New folder</TooltipContent>
-          </Tooltip>
         </div>
         
         <div className="p-3 border-b">
@@ -250,113 +246,176 @@ export default function Home() {
         </div>
         
         <ScrollArea className="flex-1 p-2">
-          {initialFiles.map((file) => (
-            <FileTreeItem
-              key={file.id}
-              node={file}
-              expandedFolders={expandedFolders}
-              toggleFolder={toggleFolder}
-              selectedFile={selectedFile}
-              setSelectedFile={setSelectedFile}
-            />
-          ))}
+          {documents.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground text-sm">
+              <FileText className="w-8 h-8 mx-auto mb-2 opacity-50" />
+              <p>No files yet</p>
+              <p className="text-xs">Upload PDFs or images to get started</p>
+            </div>
+          ) : (
+            documents.map((doc) => (
+              <FileTreeItem
+                key={doc.id}
+                doc={doc}
+                selectedFile={selectedFile}
+                setSelectedFile={setSelectedFile}
+                onDelete={(id) => deleteDocMutation.mutate(id)}
+              />
+            ))
+          )}
         </ScrollArea>
 
-        <div className="p-3 border-t">
-          <Button variant="outline" className="w-full gap-2 text-sm" size="sm" data-testid="button-upload-files">
-            <Plus className="w-4 h-4" />
-            Upload Files
+        <div className="p-3 border-t space-y-2">
+          <input
+            type="file"
+            ref={fileInputRef}
+            className="hidden"
+            accept=".pdf,.txt,.md"
+            multiple
+            onChange={(e) => handleFileChange(e, "pdf")}
+          />
+          <input
+            type="file"
+            ref={imageInputRef}
+            className="hidden"
+            accept="image/*"
+            multiple
+            onChange={(e) => handleFileChange(e, "image")}
+          />
+          <Button 
+            variant="outline" 
+            className="w-full gap-2 text-sm" 
+            size="sm"
+            onClick={() => handleFileSelect("pdf")}
+            data-testid="button-upload-pdf"
+          >
+            <FileText className="w-4 h-4" />
+            Upload PDF/Text
+          </Button>
+          <Button 
+            variant="outline" 
+            className="w-full gap-2 text-sm" 
+            size="sm"
+            onClick={() => handleFileSelect("image")}
+            data-testid="button-upload-image"
+          >
+            <Image className="w-4 h-4" />
+            Upload Image
           </Button>
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col">
-        <ScrollArea className="flex-1 p-6">
+      <main className="flex-1 flex flex-col overflow-hidden">
+        {selectedDocument ? (
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="border-b p-4 flex items-center justify-between bg-card/30">
+              <div className="flex items-center gap-3">
+                {selectedDocument.type.includes("image") ? (
+                  <Image className="w-5 h-5 text-blue-500" />
+                ) : (
+                  <FileText className="w-5 h-5 text-red-500" />
+                )}
+                <h2 className="font-medium">{selectedDocument.name}</h2>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelectedFile(null)}
+                data-testid="button-close-viewer"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+            <ScrollArea className="flex-1 p-6">
+              {selectedDocument.type.includes("image") || selectedDocument.content.startsWith("data:image") ? (
+                <div className="flex items-center justify-center h-full">
+                  <img 
+                    src={selectedDocument.content} 
+                    alt={selectedDocument.name}
+                    className="max-w-full max-h-full object-contain rounded-lg shadow-lg"
+                    data-testid="image-viewer"
+                  />
+                </div>
+              ) : (
+                <pre className="whitespace-pre-wrap font-mono text-sm leading-relaxed bg-muted/30 p-4 rounded-lg" data-testid="text-viewer">
+                  {selectedDocument.content}
+                </pre>
+              )}
+            </ScrollArea>
+          </div>
+        ) : (
+          <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
+            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary/10 to-accent/10 flex items-center justify-center mb-6">
+              <FileText className="w-10 h-10 text-primary/40" />
+            </div>
+            <h2 className="text-xl font-bold mb-2">Select a file to view</h2>
+            <p className="text-muted-foreground max-w-md">
+              Upload PDFs, text files, or images using the sidebar, then click on a file to view its contents here.
+            </p>
+          </div>
+        )}
+      </main>
+
+      <div
+        ref={chatResizeRef}
+        className="w-1 cursor-col-resize bg-border hover:bg-accent/50 transition-colors flex items-center justify-center"
+        onMouseDown={() => setIsResizing(true)}
+      >
+        <GripVertical className="w-3 h-3 text-muted-foreground" />
+      </div>
+
+      <aside 
+        className="border-l bg-card/30 flex flex-col flex-shrink-0"
+        style={{ width: `${chatWidth}px` }}
+      >
+        <div className="p-3 border-b flex items-center gap-2">
+          <MessageCircle className="w-4 h-4 text-primary" />
+          <span className="font-medium text-sm">AI Assistant</span>
+        </div>
+
+        <ScrollArea className="flex-1 p-3">
           {messages.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center max-w-xl mx-auto">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center mb-6">
-                <Sparkles className="w-8 h-8 text-primary" />
-              </div>
-              <h1 className="text-2xl font-bold mb-3">What can I help you study?</h1>
-              <p className="text-muted-foreground mb-8">
-                Upload your notes, PDFs, or images and I'll help complete missing information, answer questions, or generate practice exams.
+            <div className="h-full flex flex-col items-center justify-center text-center py-8">
+              <Sparkles className="w-8 h-8 text-primary/40 mb-3" />
+              <p className="text-sm font-medium">Ask me anything</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                I can help complete notes, answer questions, or generate practice exams
               </p>
-              <div className="grid grid-cols-2 gap-3 w-full max-w-md">
-                <div 
-                  className="p-4 rounded-xl border bg-card hover:bg-muted/50 cursor-pointer transition-colors text-left"
-                  onClick={() => handleFileSelect("pdf")}
-                  data-testid="quick-action-pdf"
-                >
-                  <FileText className="w-5 h-5 text-red-500 mb-2" />
-                  <p className="font-medium text-sm">Upload PDF</p>
-                  <p className="text-xs text-muted-foreground">Lecture notes, textbooks</p>
-                </div>
-                <div 
-                  className="p-4 rounded-xl border bg-card hover:bg-muted/50 cursor-pointer transition-colors text-left"
-                  onClick={() => handleFileSelect("image")}
-                  data-testid="quick-action-image"
-                >
-                  <Image className="w-5 h-5 text-blue-500 mb-2" />
-                  <p className="font-medium text-sm">Upload Image</p>
-                  <p className="text-xs text-muted-foreground">Diagrams, handwritten notes</p>
-                </div>
-              </div>
             </div>
           ) : (
-            <div className="max-w-3xl mx-auto space-y-6">
+            <div className="space-y-4">
               {messages.map((message) => (
                 <div
                   key={message.id}
-                  className={`flex gap-4 ${message.role === "user" ? "justify-end" : ""}`}
+                  className={`flex gap-2 ${message.role === "user" ? "justify-end" : ""}`}
                   data-testid={`message-${message.role}-${message.id}`}
                 >
                   {message.role === "assistant" && (
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center flex-shrink-0">
-                      <Sparkles className="w-4 h-4 text-white" />
+                    <div className="w-6 h-6 rounded-md bg-gradient-to-br from-primary to-accent flex items-center justify-center flex-shrink-0">
+                      <Sparkles className="w-3 h-3 text-white" />
                     </div>
                   )}
-                  <div className={`max-w-[80%] ${message.role === "user" ? "order-1" : ""}`}>
-                    {message.attachments && message.attachments.length > 0 && (
-                      <div className="flex gap-2 mb-2 flex-wrap justify-end">
-                        {message.attachments.map((att, i) => (
-                          <div key={i} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted text-sm">
-                            {att.type === "pdf" ? (
-                              <FileText className="w-4 h-4 text-red-500" />
-                            ) : (
-                              <Image className="w-4 h-4 text-blue-500" />
-                            )}
-                            <span className="truncate max-w-[150px]">{att.name}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    <div
-                      className={`rounded-2xl px-4 py-3 ${
-                        message.role === "user"
-                          ? "bg-primary text-primary-foreground rounded-br-md"
-                          : "bg-muted/50 rounded-tl-md"
-                      }`}
-                    >
-                      <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
-                    </div>
+                  <div
+                    className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${
+                      message.role === "user"
+                        ? "bg-primary text-primary-foreground rounded-br-sm"
+                        : "bg-muted/50 rounded-tl-sm"
+                    }`}
+                  >
+                    <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
                   </div>
-                  {message.role === "user" && (
-                    <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center flex-shrink-0 order-2">
-                      <span className="text-sm font-medium">You</span>
-                    </div>
-                  )}
                 </div>
               ))}
-              {isLoading && (
-                <div className="flex gap-4">
-                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center flex-shrink-0">
-                    <Sparkles className="w-4 h-4 text-white" />
+              {isLoading && messages[messages.length - 1]?.content === "" && (
+                <div className="flex gap-2">
+                  <div className="w-6 h-6 rounded-md bg-gradient-to-br from-primary to-accent flex items-center justify-center flex-shrink-0">
+                    <Sparkles className="w-3 h-3 text-white" />
                   </div>
-                  <div className="bg-muted/50 rounded-2xl rounded-tl-md px-4 py-3">
+                  <div className="bg-muted/50 rounded-xl rounded-tl-sm px-3 py-2">
                     <div className="flex gap-1">
-                      <div className="w-2 h-2 rounded-full bg-muted-foreground/50 animate-bounce" style={{ animationDelay: "0ms" }} />
-                      <div className="w-2 h-2 rounded-full bg-muted-foreground/50 animate-bounce" style={{ animationDelay: "150ms" }} />
-                      <div className="w-2 h-2 rounded-full bg-muted-foreground/50 animate-bounce" style={{ animationDelay: "300ms" }} />
+                      <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50 animate-bounce" style={{ animationDelay: "0ms" }} />
+                      <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50 animate-bounce" style={{ animationDelay: "150ms" }} />
+                      <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50 animate-bounce" style={{ animationDelay: "300ms" }} />
                     </div>
                   </div>
                 </div>
@@ -365,107 +424,30 @@ export default function Home() {
           )}
         </ScrollArea>
 
-        <div className="p-4 border-t bg-card/50">
-          <div className="max-w-3xl mx-auto">
-            {attachments.length > 0 && (
-              <div className="flex gap-2 mb-3 flex-wrap">
-                {attachments.map((att, i) => (
-                  <div key={i} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted text-sm group">
-                    {att.type === "pdf" ? (
-                      <FileText className="w-4 h-4 text-red-500" />
-                    ) : (
-                      <Image className="w-4 h-4 text-blue-500" />
-                    )}
-                    <span className="truncate max-w-[150px]">{att.name}</span>
-                    <button
-                      onClick={() => removeAttachment(i)}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity"
-                      data-testid={`remove-attachment-${i}`}
-                    >
-                      <X className="w-3 h-3 text-muted-foreground hover:text-foreground" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-            
-            <div className="relative">
-              <Textarea
-                ref={textareaRef}
-                placeholder="Ask about your notes, request completions, or generate practice questions..."
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                className="min-h-[52px] max-h-[200px] pr-24 resize-none rounded-xl border-2 focus:border-primary/50"
-                rows={1}
-                data-testid="input-message"
-              />
-              <div className="absolute right-2 bottom-2 flex items-center gap-1">
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  className="hidden"
-                  accept=".pdf"
-                  multiple
-                  onChange={(e) => handleFileChange(e, "pdf")}
-                />
-                <input
-                  type="file"
-                  ref={imageInputRef}
-                  className="hidden"
-                  accept="image/*"
-                  multiple
-                  onChange={(e) => handleFileChange(e, "image")}
-                />
-                
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-8 w-8"
-                      onClick={() => handleFileSelect("pdf")}
-                      data-testid="button-attach-pdf"
-                    >
-                      <FileText className="w-4 h-4 text-muted-foreground" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Attach PDF</TooltipContent>
-                </Tooltip>
-                
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-8 w-8"
-                      onClick={() => handleFileSelect("image")}
-                      data-testid="button-attach-image"
-                    >
-                      <Image className="w-4 h-4 text-muted-foreground" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Attach Image</TooltipContent>
-                </Tooltip>
-                
-                <Button 
-                  size="icon" 
-                  className="h-8 w-8"
-                  onClick={handleSend}
-                  disabled={(!input.trim() && attachments.length === 0) || isLoading}
-                  data-testid="button-send"
-                >
-                  <Send className="w-4 h-4" />
-                </Button>
-              </div>
-            </div>
-            
-            <p className="text-xs text-muted-foreground text-center mt-3">
-              StudyMind uses your notes to provide accurate, grounded answers
-            </p>
+        <div className="p-3 border-t">
+          <div className="relative">
+            <Textarea
+              ref={textareaRef}
+              placeholder="Ask about your notes..."
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              className="min-h-[40px] max-h-[120px] pr-10 resize-none rounded-lg text-sm"
+              rows={1}
+              data-testid="input-message"
+            />
+            <Button 
+              size="icon" 
+              className="absolute right-1 bottom-1 h-7 w-7"
+              onClick={handleSend}
+              disabled={!input.trim() || isLoading}
+              data-testid="button-send"
+            >
+              <Send className="w-3 h-3" />
+            </Button>
           </div>
         </div>
-      </main>
+      </aside>
     </div>
   );
 }
