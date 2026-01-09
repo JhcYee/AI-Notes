@@ -225,8 +225,6 @@ export default function Home() {
   const [showFolderDialog, setShowFolderDialog] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
-  const pdfBlobUrlRef = useRef<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -306,52 +304,6 @@ export default function Home() {
       document.removeEventListener("mouseup", handleMouseUp);
     };
   }, [isResizing]);
-
-  // Convert PDF data URL to blob URL for iframe display
-  useEffect(() => {
-    // Clean up previous blob URL if it exists
-    if (pdfBlobUrlRef.current) {
-      URL.revokeObjectURL(pdfBlobUrlRef.current);
-      pdfBlobUrlRef.current = null;
-      setPdfBlobUrl(null);
-    }
-
-    if (!selectedDocument) {
-      return;
-    }
-
-    const isPdf = selectedDocument.type.includes("pdf") || selectedDocument.content.startsWith("data:application/pdf");
-    
-    if (isPdf && selectedDocument.content.startsWith("data:")) {
-      // Convert data URL to blob
-      try {
-        // Extract base64 data
-        const base64Data = selectedDocument.content.split(",")[1];
-        const byteCharacters = atob(base64Data);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: "application/pdf" });
-        const blobUrl = URL.createObjectURL(blob);
-        pdfBlobUrlRef.current = blobUrl;
-        setPdfBlobUrl(blobUrl);
-      } catch (error) {
-        console.error("Error creating blob URL for PDF:", error);
-        pdfBlobUrlRef.current = null;
-        setPdfBlobUrl(null);
-      }
-    }
-
-    // Cleanup function - revoke blob URL when component unmounts or document changes
-    return () => {
-      if (pdfBlobUrlRef.current) {
-        URL.revokeObjectURL(pdfBlobUrlRef.current);
-        pdfBlobUrlRef.current = null;
-      }
-    };
-  }, [selectedDocument?.id, selectedDocument?.content]);
 
   const handleSend = () => {
     if (!input.trim() || isLoading) return;
@@ -687,20 +639,12 @@ export default function Home() {
               </Button>
             </div>
             {selectedDocument.type.includes("pdf") || selectedDocument.content.startsWith("data:application/pdf") ? (
-              pdfBlobUrl ? (
-                <iframe
-                  src={pdfBlobUrl}
-                  className="flex-1 w-full border-0"
-                  title={selectedDocument.name}
-                  data-testid="pdf-viewer"
-                />
-              ) : (
-                <div className="flex-1 flex items-center justify-center">
-                  <div className="text-center text-muted-foreground">
-                    <p>Loading PDF...</p>
-                  </div>
-                </div>
-              )
+              <iframe
+                src={`/api/documents/${selectedDocument.id}/content`}
+                className="flex-1 w-full border-0"
+                title={selectedDocument.name}
+                data-testid="pdf-viewer"
+              />
             ) : (
               <ScrollArea className="flex-1 p-6">
                 {selectedDocument.type.includes("image") || selectedDocument.content.startsWith("data:image") ? (

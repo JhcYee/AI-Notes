@@ -63,6 +63,39 @@ export async function registerRoutes(
     }
   });
 
+  // Serve document content (for PDFs and other binary files)
+  app.get("/api/documents/:id/content", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const document = await storage.getDocument(id);
+      if (!document) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+
+      // Check if content is a data URL
+      if (document.content.startsWith("data:")) {
+        const matches = document.content.match(/^data:([^;]+);base64,(.+)$/);
+        if (matches) {
+          const mimeType = matches[1];
+          const base64Data = matches[2];
+          const buffer = Buffer.from(base64Data, "base64");
+          
+          res.setHeader("Content-Type", mimeType);
+          res.setHeader("Content-Disposition", `inline; filename="${document.name}"`);
+          res.send(buffer);
+          return;
+        }
+      }
+
+      // Plain text content
+      res.setHeader("Content-Type", document.type || "text/plain");
+      res.send(document.content);
+    } catch (error) {
+      console.error("Error serving document content:", error);
+      res.status(500).json({ error: "Failed to serve document" });
+    }
+  });
+
   // AI-powered message processing with streaming
   app.post("/api/process-message", async (req: Request, res: Response) => {
     try {
