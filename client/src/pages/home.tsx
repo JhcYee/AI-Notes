@@ -6,6 +6,7 @@ import {
   Send, 
   ChevronRight, 
   ChevronDown, 
+  ChevronLeft,
   Folder, 
   FolderOpen,
   FolderPlus,
@@ -15,7 +16,9 @@ import {
   X,
   GripVertical,
   MessageCircle,
-  Trash2
+  Trash2,
+  PanelLeftClose,
+  PanelLeft
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -221,6 +224,7 @@ export default function Home() {
   const [dragOverId, setDragOverId] = useState<number | null>(null);
   const [showFolderDialog, setShowFolderDialog] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -403,106 +407,193 @@ export default function Home() {
 
   return (
     <div className="h-screen flex bg-background">
-      <aside className="w-64 border-r bg-card/50 flex flex-col flex-shrink-0">
-        <div className="p-4 border-b flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-              <Sparkles className="w-4 h-4 text-white" />
+      <aside className={`border-r bg-card/50 flex flex-col flex-shrink-0 transition-all duration-300 ${sidebarCollapsed ? "w-14" : "w-64"}`}>
+        <div className="p-3 border-b flex items-center justify-between">
+          {!sidebarCollapsed && (
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
+                <Sparkles className="w-4 h-4 text-white" />
+              </div>
+              <span className="font-serif font-bold">StudyMind</span>
             </div>
-            <span className="font-serif font-bold">StudyMind</span>
-          </div>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="h-8 w-8"
-                onClick={() => setShowFolderDialog(true)}
-                data-testid="button-new-folder"
-              >
-                <FolderPlus className="w-4 h-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Create folder</TooltipContent>
-          </Tooltip>
-        </div>
-        
-        <div className="p-3 border-b">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Your Files</p>
-          <p className="text-xs text-muted-foreground mt-1">Drag files to organize</p>
-        </div>
-        
-        <ScrollArea 
-          className="flex-1 p-2"
-          onDragOver={(e) => {
-            e.preventDefault();
-            if (draggedId) setDragOverId(-1);
-          }}
-          onDragLeave={() => setDragOverId(null)}
-          onDrop={handleRootDrop}
-        >
-          {documents.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground text-sm">
-              <FileText className="w-8 h-8 mx-auto mb-2 opacity-50" />
-              <p>No files yet</p>
-              <p className="text-xs">Upload PDFs or images to get started</p>
-            </div>
-          ) : (
-            <FileTree
-              documents={documents}
-              parentId={null}
-              selectedFile={selectedFile}
-              setSelectedFile={setSelectedFile}
-              onDelete={(id) => deleteDocMutation.mutate(id)}
-              onDrop={handleDrop}
-              expandedFolders={expandedFolders}
-              toggleFolder={toggleFolder}
-              draggedId={draggedId}
-              setDraggedId={setDraggedId}
-              dragOverId={dragOverId}
-              setDragOverId={setDragOverId}
-            />
           )}
-        </ScrollArea>
-
-        <div className="p-3 border-t space-y-2">
-          <input
-            type="file"
-            ref={fileInputRef}
-            className="hidden"
-            accept=".pdf,.txt,.md"
-            multiple
-            onChange={(e) => handleFileChange(e, "pdf")}
-          />
-          <input
-            type="file"
-            ref={imageInputRef}
-            className="hidden"
-            accept="image/*"
-            multiple
-            onChange={(e) => handleFileChange(e, "image")}
-          />
-          <Button 
-            variant="outline" 
-            className="w-full gap-2 text-sm" 
-            size="sm"
-            onClick={() => handleFileSelect("pdf")}
-            data-testid="button-upload-pdf"
-          >
-            <FileText className="w-4 h-4" />
-            Upload PDF/Text
-          </Button>
-          <Button 
-            variant="outline" 
-            className="w-full gap-2 text-sm" 
-            size="sm"
-            onClick={() => handleFileSelect("image")}
-            data-testid="button-upload-image"
-          >
-            <Image className="w-4 h-4" />
-            Upload Image
-          </Button>
+          <div className={`flex items-center gap-1 ${sidebarCollapsed ? "w-full justify-center" : ""}`}>
+            {!sidebarCollapsed && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-8 w-8"
+                    onClick={() => setShowFolderDialog(true)}
+                    data-testid="button-new-folder"
+                  >
+                    <FolderPlus className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Create folder</TooltipContent>
+              </Tooltip>
+            )}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-8 w-8"
+                  onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                  data-testid="button-toggle-sidebar"
+                >
+                  {sidebarCollapsed ? <PanelLeft className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right">{sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}</TooltipContent>
+            </Tooltip>
+          </div>
         </div>
+        
+        {!sidebarCollapsed && (
+          <>
+            <div className="p-3 border-b">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Your Files</p>
+              <p className="text-xs text-muted-foreground mt-1">Drag files to organize</p>
+            </div>
+            
+            <ScrollArea 
+              className="flex-1 p-2"
+              onDragOver={(e) => {
+                e.preventDefault();
+                if (draggedId) setDragOverId(-1);
+              }}
+              onDragLeave={() => setDragOverId(null)}
+              onDrop={handleRootDrop}
+            >
+              {documents.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground text-sm">
+                  <FileText className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p>No files yet</p>
+                  <p className="text-xs">Upload PDFs or images to get started</p>
+                </div>
+              ) : (
+                <FileTree
+                  documents={documents}
+                  parentId={null}
+                  selectedFile={selectedFile}
+                  setSelectedFile={setSelectedFile}
+                  onDelete={(id) => deleteDocMutation.mutate(id)}
+                  onDrop={handleDrop}
+                  expandedFolders={expandedFolders}
+                  toggleFolder={toggleFolder}
+                  draggedId={draggedId}
+                  setDraggedId={setDraggedId}
+                  dragOverId={dragOverId}
+                  setDragOverId={setDragOverId}
+                />
+              )}
+            </ScrollArea>
+
+            <div className="p-3 border-t space-y-2">
+              <input
+                type="file"
+                ref={fileInputRef}
+                className="hidden"
+                accept=".pdf,.txt,.md"
+                multiple
+                onChange={(e) => handleFileChange(e, "pdf")}
+              />
+              <input
+                type="file"
+                ref={imageInputRef}
+                className="hidden"
+                accept="image/*"
+                multiple
+                onChange={(e) => handleFileChange(e, "image")}
+              />
+              <Button 
+                variant="outline" 
+                className="w-full gap-2 text-sm" 
+                size="sm"
+                onClick={() => handleFileSelect("pdf")}
+                data-testid="button-upload-pdf"
+              >
+                <FileText className="w-4 h-4" />
+                Upload PDF/Text
+              </Button>
+              <Button 
+                variant="outline" 
+                className="w-full gap-2 text-sm" 
+                size="sm"
+                onClick={() => handleFileSelect("image")}
+                data-testid="button-upload-image"
+              >
+                <Image className="w-4 h-4" />
+                Upload Image
+              </Button>
+            </div>
+          </>
+        )}
+        
+        {sidebarCollapsed && (
+          <div className="flex-1 flex flex-col items-center py-4 gap-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-10 w-10"
+                  onClick={() => setShowFolderDialog(true)}
+                  data-testid="button-new-folder-collapsed"
+                >
+                  <FolderPlus className="w-5 h-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right">Create folder</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-10 w-10"
+                  onClick={() => handleFileSelect("pdf")}
+                  data-testid="button-upload-pdf-collapsed"
+                >
+                  <FileText className="w-5 h-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right">Upload PDF/Text</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-10 w-10"
+                  onClick={() => handleFileSelect("image")}
+                  data-testid="button-upload-image-collapsed"
+                >
+                  <Image className="w-5 h-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right">Upload Image</TooltipContent>
+            </Tooltip>
+            <input
+              type="file"
+              ref={fileInputRef}
+              className="hidden"
+              accept=".pdf,.txt,.md"
+              multiple
+              onChange={(e) => handleFileChange(e, "pdf")}
+            />
+            <input
+              type="file"
+              ref={imageInputRef}
+              className="hidden"
+              accept="image/*"
+              multiple
+              onChange={(e) => handleFileChange(e, "image")}
+            />
+          </div>
+        )}
       </aside>
 
       <main className="flex-1 flex flex-col overflow-hidden">
