@@ -30,6 +30,16 @@ export async function deleteDocument(id: number): Promise<void> {
   if (!response.ok) throw new Error("Failed to delete document");
 }
 
+export async function updateDocument(id: number, data: Partial<Omit<Document, "id" | "createdAt">>): Promise<Document> {
+  const response = await fetch(`/api/documents/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) throw new Error("Failed to update document");
+  return response.json();
+}
+
 export async function sendMessageStream(
   message: string,
   documents: Document[],

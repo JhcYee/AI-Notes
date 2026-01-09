@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, DragEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { 
   FileText, 
@@ -8,6 +8,7 @@ import {
   ChevronDown, 
   Folder, 
   FolderOpen,
+  FolderPlus,
   File,
   Plus,
   Sparkles,
@@ -20,10 +21,13 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { 
   fetchDocuments, 
   createDocument, 
   deleteDocument,
+  updateDocument,
   sendMessageStream,
   type Document
 } from "@/lib/api";
@@ -32,50 +36,174 @@ interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
-  attachments?: { name: string; type: string }[];
 }
 
-function FileTreeItem({ 
-  doc,
+interface FileTreeProps {
+  documents: Document[];
+  parentId: number | null;
+  depth?: number;
+  selectedFile: number | null;
+  setSelectedFile: (id: number | null) => void;
+  onDelete: (id: number) => void;
+  onDrop: (draggedId: number, targetFolderId: number | null) => void;
+  expandedFolders: number[];
+  toggleFolder: (id: number) => void;
+  draggedId: number | null;
+  setDraggedId: (id: number | null) => void;
+  dragOverId: number | null;
+  setDragOverId: (id: number | null) => void;
+}
+
+function FileTree({
+  documents,
+  parentId,
+  depth = 0,
   selectedFile,
   setSelectedFile,
-  onDelete
-}: { 
-  doc: Document;
-  selectedFile: number | null;
-  setSelectedFile: (id: number) => void;
-  onDelete: (id: number) => void;
-}) {
-  const isSelected = selectedFile === doc.id;
+  onDelete,
+  onDrop,
+  expandedFolders,
+  toggleFolder,
+  draggedId,
+  setDraggedId,
+  dragOverId,
+  setDragOverId,
+}: FileTreeProps) {
+  const items = documents.filter(d => d.parentId === parentId);
 
-  const getFileIcon = (type: string) => {
-    if (type.includes("pdf")) return <FileText className="w-4 h-4 text-red-500" />;
-    if (type.includes("image")) return <Image className="w-4 h-4 text-blue-500" />;
-    return <File className="w-4 h-4 text-muted-foreground" />;
-  };
+  const folders = items.filter(d => d.type === "folder");
+  const files = items.filter(d => d.type !== "folder");
 
   return (
-    <div
-      className={`flex items-center gap-2 py-1.5 px-2 rounded-md cursor-pointer text-sm transition-colors group ${
-        isSelected 
-          ? "bg-accent/20 text-foreground" 
-          : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"
-      }`}
-      onClick={() => setSelectedFile(doc.id)}
-      data-testid={`file-${doc.id}`}
-    >
-      {getFileIcon(doc.type)}
-      <span className="truncate flex-1">{doc.name}</span>
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onDelete(doc.id);
-        }}
-        className="opacity-0 group-hover:opacity-100 p-1 hover:bg-destructive/20 rounded transition-opacity"
-        data-testid={`delete-file-${doc.id}`}
-      >
-        <Trash2 className="w-3 h-3 text-destructive" />
-      </button>
+    <div>
+      {folders.map((folder) => {
+        const isExpanded = expandedFolders.includes(folder.id);
+        const isSelected = selectedFile === folder.id;
+        const isDragOver = dragOverId === folder.id;
+        const hasChildren = documents.some(d => d.parentId === folder.id);
+
+        return (
+          <div key={folder.id}>
+            <div
+              className={`flex items-center gap-1 py-1.5 px-2 rounded-md cursor-pointer text-sm transition-colors group ${
+                isSelected 
+                  ? "bg-accent/20 text-foreground" 
+                  : isDragOver
+                  ? "bg-accent/30 border border-accent"
+                  : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"
+              }`}
+              style={{ paddingLeft: `${depth * 12 + 8}px` }}
+              onClick={() => toggleFolder(folder.id)}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (draggedId !== folder.id) {
+                  setDragOverId(folder.id);
+                }
+              }}
+              onDragLeave={() => setDragOverId(null)}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setDragOverId(null);
+                if (draggedId && draggedId !== folder.id) {
+                  onDrop(draggedId, folder.id);
+                }
+              }}
+              data-testid={`folder-${folder.id}`}
+            >
+              {hasChildren ? (
+                isExpanded ? (
+                  <ChevronDown className="w-4 h-4 flex-shrink-0" />
+                ) : (
+                  <ChevronRight className="w-4 h-4 flex-shrink-0" />
+                )
+              ) : (
+                <span className="w-4" />
+              )}
+              {isExpanded ? (
+                <FolderOpen className="w-4 h-4 text-amber-500 flex-shrink-0" />
+              ) : (
+                <Folder className="w-4 h-4 text-amber-500 flex-shrink-0" />
+              )}
+              <span className="truncate flex-1 ml-1">{folder.name}</span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(folder.id);
+                }}
+                className="opacity-0 group-hover:opacity-100 p-1 hover:bg-destructive/20 rounded transition-opacity"
+                data-testid={`delete-folder-${folder.id}`}
+              >
+                <Trash2 className="w-3 h-3 text-destructive" />
+              </button>
+            </div>
+            {isExpanded && (
+              <FileTree
+                documents={documents}
+                parentId={folder.id}
+                depth={depth + 1}
+                selectedFile={selectedFile}
+                setSelectedFile={setSelectedFile}
+                onDelete={onDelete}
+                onDrop={onDrop}
+                expandedFolders={expandedFolders}
+                toggleFolder={toggleFolder}
+                draggedId={draggedId}
+                setDraggedId={setDraggedId}
+                dragOverId={dragOverId}
+                setDragOverId={setDragOverId}
+              />
+            )}
+          </div>
+        );
+      })}
+      {files.map((doc) => {
+        const isSelected = selectedFile === doc.id;
+        const isDragging = draggedId === doc.id;
+
+        const getFileIcon = (type: string) => {
+          if (type.includes("pdf") || type.includes("text")) return <FileText className="w-4 h-4 text-red-500" />;
+          if (type.includes("image")) return <Image className="w-4 h-4 text-blue-500" />;
+          return <File className="w-4 h-4 text-muted-foreground" />;
+        };
+
+        return (
+          <div
+            key={doc.id}
+            className={`flex items-center gap-2 py-1.5 px-2 rounded-md cursor-pointer text-sm transition-all group ${
+              isSelected 
+                ? "bg-accent/20 text-foreground" 
+                : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"
+            } ${isDragging ? "opacity-50" : ""}`}
+            style={{ paddingLeft: `${depth * 12 + 24}px` }}
+            onClick={() => setSelectedFile(doc.id)}
+            draggable
+            onDragStart={(e) => {
+              e.stopPropagation();
+              setDraggedId(doc.id);
+            }}
+            onDragEnd={() => {
+              setDraggedId(null);
+              setDragOverId(null);
+            }}
+            data-testid={`file-${doc.id}`}
+          >
+            {getFileIcon(doc.type)}
+            <span className="truncate flex-1">{doc.name}</span>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(doc.id);
+              }}
+              className="opacity-0 group-hover:opacity-100 p-1 hover:bg-destructive/20 rounded transition-opacity"
+              data-testid={`delete-file-${doc.id}`}
+            >
+              <Trash2 className="w-3 h-3 text-destructive" />
+            </button>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -88,10 +216,14 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [chatWidth, setChatWidth] = useState(380);
   const [isResizing, setIsResizing] = useState(false);
+  const [expandedFolders, setExpandedFolders] = useState<number[]>([]);
+  const [draggedId, setDraggedId] = useState<number | null>(null);
+  const [dragOverId, setDragOverId] = useState<number | null>(null);
+  const [showFolderDialog, setShowFolderDialog] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const chatResizeRef = useRef<HTMLDivElement>(null);
 
   const { data: documents = [] } = useQuery({
     queryKey: ["/api/documents"],
@@ -100,6 +232,13 @@ export default function Home() {
 
   const createDocMutation = useMutation({
     mutationFn: createDocument,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
+    },
+  });
+
+  const updateDocMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: Partial<Document> }) => updateDocument(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
     },
@@ -114,6 +253,31 @@ export default function Home() {
   });
 
   const selectedDocument = documents.find(d => d.id === selectedFile);
+
+  const toggleFolder = (id: number) => {
+    setExpandedFolders((prev) =>
+      prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id]
+    );
+  };
+
+  const handleDrop = (draggedId: number, targetFolderId: number | null) => {
+    updateDocMutation.mutate({ id: draggedId, data: { parentId: targetFolderId } });
+    if (targetFolderId && !expandedFolders.includes(targetFolderId)) {
+      setExpandedFolders((prev) => [...prev, targetFolderId]);
+    }
+  };
+
+  const handleCreateFolder = () => {
+    if (!newFolderName.trim()) return;
+    createDocMutation.mutate({
+      name: newFolderName,
+      type: "folder",
+      content: "",
+      parentId: null,
+    });
+    setNewFolderName("");
+    setShowFolderDialog(false);
+  };
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -159,7 +323,7 @@ export default function Home() {
 
     sendMessageStream(
       input,
-      documents,
+      documents.filter(d => d.type !== "folder"),
       (content) => {
         setMessages((prev) => {
           const updated = [...prev];
@@ -222,6 +386,14 @@ export default function Home() {
     e.target.value = "";
   };
 
+  const handleRootDrop = (e: DragEvent) => {
+    e.preventDefault();
+    setDragOverId(null);
+    if (draggedId) {
+      handleDrop(draggedId, null);
+    }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -237,16 +409,38 @@ export default function Home() {
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
               <Sparkles className="w-4 h-4 text-white" />
             </div>
-            <span className="font-serif font-bold">AI Notes+
-</span>
+            <span className="font-serif font-bold">StudyMind</span>
           </div>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-8 w-8"
+                onClick={() => setShowFolderDialog(true)}
+                data-testid="button-new-folder"
+              >
+                <FolderPlus className="w-4 h-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Create folder</TooltipContent>
+          </Tooltip>
         </div>
         
         <div className="p-3 border-b">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Your Files</p>
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Your Files</p>
+          <p className="text-xs text-muted-foreground mt-1">Drag files to organize</p>
         </div>
         
-        <ScrollArea className="flex-1 p-2">
+        <ScrollArea 
+          className="flex-1 p-2"
+          onDragOver={(e) => {
+            e.preventDefault();
+            if (draggedId) setDragOverId(-1);
+          }}
+          onDragLeave={() => setDragOverId(null)}
+          onDrop={handleRootDrop}
+        >
           {documents.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground text-sm">
               <FileText className="w-8 h-8 mx-auto mb-2 opacity-50" />
@@ -254,15 +448,20 @@ export default function Home() {
               <p className="text-xs">Upload PDFs or images to get started</p>
             </div>
           ) : (
-            documents.map((doc) => (
-              <FileTreeItem
-                key={doc.id}
-                doc={doc}
-                selectedFile={selectedFile}
-                setSelectedFile={setSelectedFile}
-                onDelete={(id) => deleteDocMutation.mutate(id)}
-              />
-            ))
+            <FileTree
+              documents={documents}
+              parentId={null}
+              selectedFile={selectedFile}
+              setSelectedFile={setSelectedFile}
+              onDelete={(id) => deleteDocMutation.mutate(id)}
+              onDrop={handleDrop}
+              expandedFolders={expandedFolders}
+              toggleFolder={toggleFolder}
+              draggedId={draggedId}
+              setDraggedId={setDraggedId}
+              dragOverId={dragOverId}
+              setDragOverId={setDragOverId}
+            />
           )}
         </ScrollArea>
 
@@ -305,8 +504,9 @@ export default function Home() {
           </Button>
         </div>
       </aside>
+
       <main className="flex-1 flex flex-col overflow-hidden">
-        {selectedDocument ? (
+        {selectedDocument && selectedDocument.type !== "folder" ? (
           <div className="flex-1 flex flex-col overflow-hidden">
             <div className="border-b p-4 flex items-center justify-between bg-card/30">
               <div className="flex items-center gap-3">
@@ -355,13 +555,14 @@ export default function Home() {
           </div>
         )}
       </main>
+
       <div
-        ref={chatResizeRef}
         className="w-1 cursor-col-resize bg-border hover:bg-accent/50 transition-colors flex items-center justify-center"
         onMouseDown={() => setIsResizing(true)}
       >
         <GripVertical className="w-3 h-3 text-muted-foreground" />
       </div>
+
       <aside 
         className="border-l bg-card/30 flex flex-col flex-shrink-0"
         style={{ width: `${chatWidth}px` }}
@@ -446,6 +647,27 @@ export default function Home() {
           </div>
         </div>
       </aside>
+
+      <Dialog open={showFolderDialog} onOpenChange={setShowFolderDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Folder</DialogTitle>
+          </DialogHeader>
+          <Input
+            placeholder="Folder name"
+            value={newFolderName}
+            onChange={(e) => setNewFolderName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleCreateFolder();
+            }}
+            data-testid="input-folder-name"
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowFolderDialog(false)}>Cancel</Button>
+            <Button onClick={handleCreateFolder} data-testid="button-create-folder">Create</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

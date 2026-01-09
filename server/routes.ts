@@ -48,6 +48,21 @@ export async function registerRoutes(
     }
   });
 
+  // Update document
+  app.patch("/api/documents/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const document = await storage.updateDocument(id, req.body);
+      if (!document) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+      res.json(document);
+    } catch (error) {
+      console.error("Error updating document:", error);
+      res.status(500).json({ error: "Failed to update document" });
+    }
+  });
+
   // AI-powered message processing with streaming
   app.post("/api/process-message", async (req: Request, res: Response) => {
     try {
