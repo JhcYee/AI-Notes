@@ -1,3 +1,4 @@
+import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { registerChatRoutes } from "./replit_integrations/chat";
@@ -94,7 +95,7 @@ app.use((req, res, next) => {
     {
       port,
       host: "0.0.0.0",
-      reusePort: true,
+      ...(process.platform === "linux" && { reusePort: true }),
     },
     () => {
       log(`serving on port ${port}`);

@@ -433,7 +433,7 @@ export default function Home() {
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
                 <Sparkles className="w-4 h-4 text-white" />
               </div>
-              <span className="font-serif font-bold">StudyMind</span>
+              <span className="font-serif font-bold">AI Notes+</span>
             </div>
           )}
           <div className={`flex items-center gap-1 ${sidebarCollapsed ? "w-full justify-center" : ""}`}>
