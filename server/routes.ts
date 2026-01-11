@@ -118,7 +118,7 @@ export async function registerRoutes(
         context = documents.map((doc: any) => `${doc.name}:\n${doc.content}`).join("\n\n");
       }
 
-      const systemPrompt = `You are StudyMind AI, an intelligent study assistant that helps students with their notes. You can:
+      const systemPrompt = `You are AI Notes+, an intelligent study assistant that helps students with their notes. You can:
 1. Complete incomplete notes by filling in missing definitions and explanations
 2. Answer questions about study materials using RAG (Retrieval-Augmented Generation)
 3. Generate practice exam questions
